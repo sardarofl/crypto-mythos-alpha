@@ -1,0 +1,33 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Node
+frontend/node_modules/
+frontend/.next/
+
+# Freqtrade data
+freqtrade-develop.zip
+freqtrade.log
+tradesv3.dryrun.sqlite
+tradesv3.dryrun.sqlite-shm
+tradesv3.dryrun.sqlite-wal
+freqtrade-develop/user_data/data/
+freqtrade-develop/user_data/logs/
+
+# Secrets - NEVER commit these
+freqtrade-develop/user_data/config/config_mythos_live.json
+.env
+.env.local
+frontend/.env.local
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/

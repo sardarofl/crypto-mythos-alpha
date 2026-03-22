@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__Claude_Preview__preview_start",
+      "Bash(ls \"F:/Essentials/Claude Dev/trader-mythos-alpha/frontend/node_modules/.bin/next\"*)"
+    ]
+  }
+}
