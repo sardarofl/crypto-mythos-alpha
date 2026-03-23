@@ -118,7 +118,7 @@ RULES:
 - Be honest - if the signal is mixed, say so`;
 
   try {
-    const res = await fetch("https://api.minimax.chat/v1/text/chatcompletion_v2", {
+    const res = await fetch("https://api.minimax.io/v1/chat/completions", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
