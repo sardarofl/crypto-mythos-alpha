@@ -144,11 +144,21 @@ RULES:
     const data = await res.json();
     const content = data?.choices?.[0]?.message?.content || "";
 
-    // Extract JSON from response (handle potential markdown wrapping)
+    // Strip thinking tags (MiniMax M2.7 is a reasoning model)
     let jsonStr = content.trim();
+    jsonStr = jsonStr.replace(/<think>[\s\S]*?<\/think>/g, "").trim();
+
+    // Strip markdown code fences
     if (jsonStr.startsWith("```")) {
-      jsonStr = jsonStr.replace(/```json?\n?/g, "").replace(/```$/g, "").trim();
+      jsonStr = jsonStr.replace(/```json?\n?/g, "").replace(/```\s*$/g, "").trim();
     }
+
+    // Find the JSON object in case there's any remaining text
+    const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+    if (!jsonMatch) {
+      throw new Error("No JSON object found in MiniMax response");
+    }
+    jsonStr = jsonMatch[0];
 
     const parsed = JSON.parse(jsonStr);
 
