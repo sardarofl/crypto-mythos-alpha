@@ -63,24 +63,45 @@ async function fetchFearGreed() {
   return null;
 }
 
-// Fetch crypto news headlines from CryptoCompare (free tier)
+// Fetch crypto news headlines from Google News RSS (free, no API key)
 async function fetchNewsHeadlines(): Promise<{ title: string; categories: string }[]> {
-  try {
-    const res = await fetch(
-      "https://min-api.cryptocompare.com/data/v2/news/?lang=EN&sortOrder=popular",
-      { cache: "no-store" }
-    );
-    const data = await res.json();
-    if (data?.Data) {
-      return data.Data.slice(0, 20).map((article: { title: string; categories: string }) => ({
-        title: article.title,
-        categories: article.categories || "",
-      }));
+  const queries = [
+    "cryptocurrency+bitcoin+ethereum+solana",
+    "crypto+XRP+dogecoin+cardano",
+  ];
+
+  const allHeadlines: { title: string; categories: string }[] = [];
+
+  for (const q of queries) {
+    try {
+      const res = await fetch(
+        `https://news.google.com/rss/search?q=${q}&hl=en-US&gl=US&ceid=US:en`,
+        { cache: "no-store" }
+      );
+      const xml = await res.text();
+
+      // Parse titles from RSS XML
+      const titleRegex = /<title><!\[CDATA\[(.*?)\]\]><\/title>/g;
+      let match;
+      while ((match = titleRegex.exec(xml)) !== null) {
+        allHeadlines.push({ title: match[1], categories: "" });
+      }
+      // Also handle non-CDATA titles
+      const titleRegex2 = /<item>[\s\S]*?<title>([^<]+)<\/title>/g;
+      while ((match = titleRegex2.exec(xml)) !== null) {
+        const title = match[1].trim();
+        if (title && !title.includes("Google News") && !allHeadlines.some(h => h.title === title)) {
+          allHeadlines.push({ title, categories: "" });
+        }
+      }
+    } catch (e) {
+      console.error(`[Sentiment] News fetch failed for query "${q}":`, e);
     }
-  } catch (e) {
-    console.error("News fetch failed:", e);
   }
-  return [];
+
+  console.log(`[Sentiment] Fetched ${allHeadlines.length} headlines from Google News`);
+  // Return first 25 unique headlines
+  return allHeadlines.slice(0, 25);
 }
 
 // Send headlines to MiniMax M2.7 for per-coin sentiment analysis
