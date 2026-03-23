@@ -1,0 +1,78 @@
+{
+    "trading_mode": "spot",
+    "margin_mode": "",
+    "max_open_trades": 5,
+    "stake_currency": "USDT",
+    "stake_amount": "unlimited",
+    "tradable_balance_ratio": 0.99,
+    "fiat_display_currency": "USD",
+    "dry_run": true,
+    "dry_run_wallet": 100,
+    "cancel_open_orders_on_exit": false,
+    "timeframe": "5m",
+    "exchange": {
+        "name": "bybit",
+        "key": "",
+        "secret": "",
+        "ccxt_sync_config": {},
+        "ccxt_async_config": {
+            "aiohttp_trust_env": true
+        },
+        "pair_whitelist": [
+            "BTC/USDT",
+            "ETH/USDT",
+            "SOL/USDT",
+            "NEAR/USDT",
+            "XRP/USDT",
+            "DOGE/USDT",
+            "ADA/USDT",
+            "AVAX/USDT",
+            "LINK/USDT",
+            "DOT/USDT"
+        ],
+        "pair_blacklist": []
+    },
+    "pairlists": [
+        {
+            "method": "StaticPairList"
+        }
+    ],
+    "entry_pricing": {
+        "price_side": "same",
+        "use_order_book": true,
+        "order_book_top": 1,
+        "price_last_balance": 0.0,
+        "check_depth_of_market": {
+            "enabled": false,
+            "bids_to_ask_delta": 1
+        }
+    },
+    "exit_pricing": {
+        "price_side": "same",
+        "use_order_book": true,
+        "order_book_top": 1
+    },
+    "order_types": {
+        "entry": "limit",
+        "exit": "limit",
+        "stoploss": "market",
+        "stoploss_on_exchange": false
+    },
+    "api_server": {
+        "enabled": true,
+        "listen_ip_address": "0.0.0.0",
+        "listen_port": 8080,
+        "verbosity": "error",
+        "enable_openapi": true,
+        "jwt_secret_key": "7OQjhSygRgrRrQxMK1BcSAdaUrfwB8InndNiog17HLA",
+        "ws_token": "FNY3aXFMMPlEZAbnpOQySw",
+        "CORS_origins": ["http://localhost:3000", "http://0.0.0.0:3000", "*"],
+        "username": "mythos",
+        "password": "mythos_alpha_2024"
+    },
+    "bot_name": "TraderMythos",
+    "initial_state": "running",
+    "internals": {
+        "process_throttle_secs": 5
+    }
+}

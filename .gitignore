@@ -23,6 +23,10 @@ freqtrade-develop/user_data/config/config_mythos_live.json
 .env.local
 frontend/.env.local
 
+# Runtime
+.pids
+frontend.log
+
 # OS
 .DS_Store
 Thumbs.db
