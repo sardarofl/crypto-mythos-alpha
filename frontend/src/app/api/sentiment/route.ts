@@ -65,9 +65,9 @@ async function fetchNewsHeadlines(): Promise<{ title: string; body: string; cate
     );
     const data = await res.json();
     if (data?.Data) {
-      return data.Data.slice(0, 50).map((article: { title: string; body: string; categories: string }) => ({
+      return data.Data.slice(0, 25).map((article: { title: string; body: string; categories: string }) => ({
         title: article.title,
-        body: (article.body || "").substring(0, 200),
+        body: "",
         categories: article.categories || "",
       }));
     }
@@ -118,6 +118,9 @@ RULES:
 - Be honest - if the signal is mixed, say so`;
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 45000); // 45s timeout
+
     const res = await fetch("https://api.minimax.io/v1/chat/completions", {
       method: "POST",
       headers: {
@@ -127,13 +130,16 @@ RULES:
       body: JSON.stringify({
         model: "MiniMax-M2.7",
         messages: [
-          { role: "system", content: "You are a JSON-only crypto sentiment analyst. Never output anything except valid JSON." },
+          { role: "system", content: "You are a JSON-only crypto sentiment analyst. Respond with ONLY valid JSON, no thinking, no explanation." },
           { role: "user", content: prompt },
         ],
-        temperature: 0.3,
-        max_tokens: 3000,
+        temperature: 0.7,
+        max_tokens: 2000,
       }),
+      signal: controller.signal,
     });
+
+    clearTimeout(timeout);
 
     if (!res.ok) {
       const errText = await res.text();
