@@ -1,5 +1,5 @@
 import useSWR from "swr";
-import type { DashboardData, TradeInfo } from "@/types/freqtrade";
+import type { DashboardData, TradeInfo, SentimentData, AppSettings } from "@/types/freqtrade";
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
 
@@ -23,6 +23,20 @@ export function usePerformance() {
     performance: { pair: string; profit: number; profit_abs: number; count: number }[];
     whitelist: { whitelist: string[] };
   }>("/api/bot/performance", fetcher, { refreshInterval: 30000 });
+}
+
+export function useSentiment() {
+  return useSWR<SentimentData>("/api/sentiment", fetcher, {
+    refreshInterval: 15 * 60 * 1000, // 15 minutes
+    revalidateOnFocus: false,
+    dedupingInterval: 60000,
+  });
+}
+
+export function useSettings() {
+  return useSWR<AppSettings>("/api/settings", fetcher, {
+    revalidateOnFocus: false,
+  });
 }
 
 export function useBotAction() {

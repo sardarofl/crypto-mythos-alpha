@@ -1,20 +1,77 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { useDashboard } from "@/hooks/useFreqtrade";
+import { useDashboard, useSettings } from "@/hooks/useFreqtrade";
 import { useAppStore } from "@/lib/store";
-import { Settings, Shield, Key, Bot, AlertTriangle } from "lucide-react";
+import { Settings, Shield, Key, Bot, AlertTriangle, Brain, Check, Eye, EyeOff } from "lucide-react";
 
 export default function SettingsPage() {
   const { data } = useDashboard();
+  const { data: settings, mutate: refreshSettings } = useSettings();
   const addNotification = useAppStore((s) => s.addNotification);
   const config = data?.config;
 
   const [exchangeKey, setExchangeKey] = useState("");
   const [exchangeSecret, setExchangeSecret] = useState("");
+
+  // MiniMax settings
+  const [minimaxKey, setMinimaxKey] = useState("");
+  const [showMinimaxKey, setShowMinimaxKey] = useState(false);
+  const [sentimentEnabled, setSentimentEnabled] = useState(true);
+  const [refreshMinutes, setRefreshMinutes] = useState(15);
+  const [savingMinimax, setSavingMinimax] = useState(false);
+
+  // Load settings when data arrives
+  useEffect(() => {
+    if (settings) {
+      setSentimentEnabled(settings.sentiment_enabled !== "false");
+      setRefreshMinutes(parseInt(settings.sentiment_refresh_minutes) || 15);
+    }
+  }, [settings]);
+
+  const handleSaveMinimax = async () => {
+    setSavingMinimax(true);
+    try {
+      const body: Record<string, unknown> = {
+        sentiment_enabled: sentimentEnabled,
+        sentiment_refresh_minutes: refreshMinutes,
+      };
+      if (minimaxKey.trim()) {
+        body.minimax_api_key = minimaxKey.trim();
+      }
+
+      const res = await fetch("/api/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      if (res.ok) {
+        addNotification({
+          type: "success",
+          title: "Settings Saved",
+          message: minimaxKey.trim()
+            ? "MiniMax API key saved securely (encrypted in database)"
+            : "Sentiment settings updated",
+        });
+        setMinimaxKey("");
+        refreshSettings();
+      } else {
+        throw new Error("Failed to save");
+      }
+    } catch {
+      addNotification({
+        type: "error",
+        title: "Save Failed",
+        message: "Could not save settings. Please try again.",
+      });
+    } finally {
+      setSavingMinimax(false);
+    }
+  };
 
   return (
     <div className="space-y-6">
@@ -77,6 +134,93 @@ export default function SettingsPage() {
         </div>
       </Card>
 
+      {/* MiniMax AI Sentiment */}
+      <Card>
+        <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+          <Brain className="h-5 w-5 text-purple-400" /> AI Sentiment Analysis (MiniMax M2.7)
+        </h3>
+        <p className="text-xs text-[var(--color-muted)] mb-4">
+          Your API key is encrypted and stored securely in a local SQLite database. It never leaves your server.
+        </p>
+
+        <div className="space-y-4 max-w-lg">
+          {/* API Key Status */}
+          {settings?.minimax_api_key_set && (
+            <div className="flex items-center gap-2 rounded-lg border border-[var(--color-success)]/30 bg-[var(--color-success)]/5 px-3 py-2">
+              <Check className="h-4 w-4 text-[var(--color-success)]" />
+              <span className="text-xs text-[var(--color-success)]">
+                API key configured: {settings.minimax_api_key}
+              </span>
+            </div>
+          )}
+
+          {/* API Key Input */}
+          <div>
+            <label className="block text-xs text-[var(--color-muted)] mb-1">
+              MiniMax API Key {settings?.minimax_api_key_set ? "(enter new to replace)" : ""}
+            </label>
+            <div className="relative">
+              <input
+                type={showMinimaxKey ? "text" : "password"}
+                value={minimaxKey}
+                onChange={(e) => setMinimaxKey(e.target.value)}
+                placeholder="sk-cp-..."
+                className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 pr-10 text-sm font-mono"
+              />
+              <button
+                type="button"
+                onClick={() => setShowMinimaxKey(!showMinimaxKey)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-[var(--color-muted)] hover:text-[var(--color-foreground)]"
+              >
+                {showMinimaxKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+          </div>
+
+          {/* Sentiment Toggle */}
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">Enable Sentiment Analysis</p>
+              <p className="text-xs text-[var(--color-muted)]">Show AI-powered market mood on dashboard</p>
+            </div>
+            <button
+              onClick={() => setSentimentEnabled(!sentimentEnabled)}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                sentimentEnabled ? "bg-[var(--color-accent)]" : "bg-[var(--color-border)]"
+              }`}
+            >
+              <span
+                className={`inline-block h-4 w-4 rounded-full bg-white transition-transform ${
+                  sentimentEnabled ? "translate-x-6" : "translate-x-1"
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Refresh Interval */}
+          <div>
+            <label className="block text-xs text-[var(--color-muted)] mb-1">
+              Refresh Interval (minutes)
+            </label>
+            <select
+              value={refreshMinutes}
+              onChange={(e) => setRefreshMinutes(parseInt(e.target.value))}
+              className="rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
+            >
+              <option value={5}>Every 5 minutes</option>
+              <option value={15}>Every 15 minutes</option>
+              <option value={30}>Every 30 minutes</option>
+              <option value={60}>Every hour</option>
+            </select>
+          </div>
+
+          {/* Save Button */}
+          <Button onClick={handleSaveMinimax} disabled={savingMinimax}>
+            {savingMinimax ? "Saving..." : "Save Sentiment Settings"}
+          </Button>
+        </div>
+      </Card>
+
       {/* Risk Management */}
       <Card>
         <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
@@ -132,7 +276,7 @@ export default function SettingsPage() {
               type="password"
               value={exchangeKey}
               onChange={(e) => setExchangeKey(e.target.value)}
-              placeholder="Enter your Binance API key"
+              placeholder="Enter your exchange API key"
               className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
             />
           </div>
@@ -142,7 +286,7 @@ export default function SettingsPage() {
               type="password"
               value={exchangeSecret}
               onChange={(e) => setExchangeSecret(e.target.value)}
-              placeholder="Enter your Binance API secret"
+              placeholder="Enter your exchange API secret"
               className="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-background)] px-3 py-2 text-sm"
             />
           </div>

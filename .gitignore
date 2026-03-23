@@ -22,6 +22,9 @@ freqtrade-develop/user_data/config/config_mythos_live.json
 .env
 .env.local
 frontend/.env.local
+mythos_settings.sqlite
+mythos_settings.sqlite-shm
+mythos_settings.sqlite-wal
 
 # Runtime
 .pids

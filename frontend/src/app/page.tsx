@@ -8,6 +8,7 @@ import { DailyProfitChart } from "@/components/dashboard/DailyProfitChart";
 import { PerformanceStats } from "@/components/dashboard/PerformanceStats";
 import { TradeHistory } from "@/components/dashboard/TradeHistory";
 import { PairBreakdown } from "@/components/dashboard/PairBreakdown";
+import { SentimentPanel } from "@/components/dashboard/SentimentPanel";
 import { Spinner } from "@/components/ui/Spinner";
 import { Button } from "@/components/ui/Button";
 import { useBotAction } from "@/hooks/useFreqtrade";
@@ -112,6 +113,9 @@ export default function DashboardPage() {
         </div>
         <PerformanceStats profit={data.profit} />
       </div>
+
+      {/* Market Sentiment */}
+      <SentimentPanel />
 
       {/* Active Trades */}
       <ActiveTradesTable trades={data.openTrades || []} />

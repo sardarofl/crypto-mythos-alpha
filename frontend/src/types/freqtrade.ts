@@ -228,3 +228,35 @@ export interface WsMessage {
   type: string;
   data?: unknown;
 }
+
+// Sentiment types
+export interface CoinSentiment {
+  coin: string;
+  name: string;
+  sentiment: "bullish" | "bearish" | "neutral";
+  confidence: number;
+  summary: string;
+  headlines: string[];
+}
+
+export interface FearGreed {
+  value: number;
+  classification: string;
+  timestamp: string;
+}
+
+export interface SentimentData {
+  fearGreed: FearGreed | null;
+  coins: CoinSentiment[];
+  marketSummary: string;
+  lastUpdated: string;
+  error?: string;
+}
+
+// Settings types
+export interface AppSettings {
+  minimax_api_key: string | null;
+  minimax_api_key_set: boolean;
+  sentiment_enabled: string;
+  sentiment_refresh_minutes: string;
+}
