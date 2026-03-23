@@ -135,6 +135,8 @@ export function SentimentPanel() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
+    // Force refresh — clears server-side cache
+    await fetch("/api/sentiment?refresh=true");
     await mutate();
     setRefreshing(false);
   };

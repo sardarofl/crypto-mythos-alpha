@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { getSetting } from "@/lib/settings-db";
 
 // The monitored pairs
@@ -82,7 +82,7 @@ async function analyzeSentimentWithMinimax(
   apiKey: string,
   headlines: { title: string; body: string; categories: string }[],
   fearGreedValue: number | null
-): Promise<{ coins: CoinSentiment[]; marketSummary: string }> {
+): Promise<{ coins: CoinSentiment[]; marketSummary: string; failed: boolean }> {
   const headlineText = headlines
     .map((h, i) => `${i + 1}. ${h.title}`)
     .join("\n");
@@ -178,10 +178,12 @@ RULES:
     return {
       coins,
       marketSummary: parsed.marketSummary || "Unable to generate market summary.",
+      failed: false,
     };
   } catch (e) {
     console.error("MiniMax analysis failed:", e);
-    // Return neutral fallback
+    console.error("MiniMax error details:", e instanceof Error ? e.message : String(e));
+    // Return neutral fallback — marked as failed so it won't be cached
     return {
       coins: PAIRS.map((coin) => ({
         coin,
@@ -191,13 +193,17 @@ RULES:
         summary: "Sentiment analysis temporarily unavailable.",
         headlines: [],
       })),
-      marketSummary: "Sentiment analysis is temporarily unavailable. Check your MiniMax API key in Settings.",
+      marketSummary: `Sentiment analysis failed: ${e instanceof Error ? e.message : "Unknown error"}. The AI will retry on the next refresh. If this persists, check your MiniMax API key in Settings.`,
+      failed: true,
     };
   }
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
+    const { searchParams } = new URL(request.url);
+    const forceRefresh = searchParams.get("refresh") === "true";
+
     const sentimentEnabled = getSetting("sentiment_enabled") ?? "true";
     if (sentimentEnabled !== "true") {
       return NextResponse.json({
@@ -208,11 +214,19 @@ export async function GET() {
       });
     }
 
-    // Check cache
-    const refreshMinutes = parseInt(getSetting("sentiment_refresh_minutes") ?? "15");
-    const cacheMs = refreshMinutes * 60 * 1000;
-    if (cachedSentiment && Date.now() - cacheTimestamp < cacheMs) {
-      return NextResponse.json(cachedSentiment);
+    // Check cache (skip if force refresh or if cached result was an error)
+    if (!forceRefresh) {
+      const refreshMinutes = parseInt(getSetting("sentiment_refresh_minutes") ?? "15");
+      const cacheMs = refreshMinutes * 60 * 1000;
+      if (cachedSentiment && !cachedSentiment.error && Date.now() - cacheTimestamp < cacheMs) {
+        return NextResponse.json(cachedSentiment);
+      }
+    }
+
+    // Clear cache on force refresh
+    if (forceRefresh) {
+      cachedSentiment = null;
+      cacheTimestamp = 0;
     }
 
     const apiKey = getSetting("minimax_api_key");
@@ -241,7 +255,7 @@ export async function GET() {
 
     // Fetch news + analyze
     const headlines = await fetchNewsHeadlines();
-    const { coins, marketSummary } = await analyzeSentimentWithMinimax(
+    const { coins, marketSummary, failed } = await analyzeSentimentWithMinimax(
       apiKey,
       headlines,
       fearGreed?.value ?? null
@@ -252,11 +266,14 @@ export async function GET() {
       coins,
       marketSummary,
       lastUpdated: new Date().toISOString(),
+      error: failed ? "minimax_failed" : undefined,
     };
 
-    // Cache it
-    cachedSentiment = response;
-    cacheTimestamp = Date.now();
+    // Only cache successful results
+    if (!failed) {
+      cachedSentiment = response;
+      cacheTimestamp = Date.now();
+    }
 
     return NextResponse.json(response);
   } catch (error) {
