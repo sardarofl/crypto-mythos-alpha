@@ -12,7 +12,8 @@ interface Props {
 export function PortfolioCards({ data }: Props) {
   const { balance, profit, openTrades } = data;
 
-  const totalValue = balance?.total_bot ?? 0;
+  // Use total (all assets) not total_bot (which can lose track of funds in dry-run)
+  const totalValue = balance?.total ?? balance?.total_bot ?? 0;
   const startingCapital = balance?.starting_capital ?? 100;
   const totalPnl = totalValue - startingCapital;
   const totalPnlRatio = startingCapital > 0 ? totalPnl / startingCapital : 0;

@@ -53,7 +53,7 @@ export function Header() {
         <div className="flex items-center gap-2 rounded-lg bg-[var(--color-card)] px-3 py-1.5 border border-[var(--color-border)]">
           <Wallet className="h-4 w-4 text-[var(--color-accent)]" />
           <span className="text-sm font-semibold">
-            {balance ? formatCurrency(balance.total_bot) : "$0.00"}
+            {balance ? formatCurrency(balance.total ?? balance.total_bot) : "$0.00"}
           </span>
           <span className="text-xs text-[var(--color-muted)]">
             {balance?.stake || "USDT"}
