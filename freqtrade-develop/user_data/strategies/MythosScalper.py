@@ -335,13 +335,15 @@ class MythosScalper(IStrategy):
         # Per-coin sentiment boost/reduction
         if sentiment == "bullish" and confidence >= 60:
             # High-confidence bullish: +20% to +30%
-            multiplier += 0.20 + (confidence - 60) / 200  # max +0.30
+            # At conf=60: +0.20, at conf=100: +0.20+0.10=+0.30
+            multiplier += 0.20 + (confidence - 60) / 400
         elif sentiment == "bullish" and confidence >= 40:
             # Moderate bullish: +10%
             multiplier += 0.10
         elif sentiment == "bearish" and confidence >= 60:
             # High-confidence bearish: -30% to -40%
-            multiplier -= 0.30 + (confidence - 60) / 250  # max -0.40
+            # At conf=60: -0.30, at conf=100: -0.30-0.10=-0.40
+            multiplier -= 0.30 + (confidence - 60) / 400
         elif sentiment == "bearish" and confidence >= 40:
             # Moderate bearish: -20%
             multiplier -= 0.20

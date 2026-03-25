@@ -46,6 +46,10 @@ export function useBotAction() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ action, ...data }),
     });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: "Unknown error" }));
+      throw new Error(err.error || `Bot action '${action}' failed (${res.status})`);
+    }
     return res.json();
   };
 }
