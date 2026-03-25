@@ -280,7 +280,10 @@ class MythosScalper(IStrategy):
         current_rate: float, current_profit: float, after_fill: bool,
         **kwargs,
     ) -> float:
-        """ATR-based dynamic stoploss that adapts to volatility."""
+        """
+        ATR-based dynamic stoploss calculated from ENTRY price, not current.
+        Also enforces a hard floor: never allow loss beyond -3%.
+        """
         dataframe, _ = self.dp.get_analyzed_dataframe(pair, self.timeframe)
         if dataframe.empty:
             return self.stoploss
@@ -288,13 +291,41 @@ class MythosScalper(IStrategy):
         last_candle = dataframe.iloc[-1]
         atr = last_candle.get("atr", 0)
 
-        if atr > 0 and current_rate > 0:
-            # Stoploss at 2x ATR below current price
-            atr_stoploss = -(atr * 2) / current_rate
-            # Don't make stoploss wider than default
+        if atr > 0 and trade.open_rate > 0:
+            # Stoploss at 2x ATR below ENTRY price (not current price)
+            atr_stoploss = -(atr * 2) / trade.open_rate
+            # Never wider than -3% (hard floor)
             return max(atr_stoploss, self.stoploss)
 
         return self.stoploss
+
+    def custom_exit(
+        self, pair: str, trade: Trade, current_time: datetime,
+        current_rate: float, current_profit: float, **kwargs,
+    ) -> str | bool:
+        """
+        Time-based exit: if a trade isn't profitable after 2 hours, cut it.
+        Don't let losers sit and bleed.
+        """
+        trade_duration = (current_time - trade.open_date_utc).total_seconds() / 60
+
+        # After 2 hours: if still losing, exit immediately
+        if trade_duration > 120 and current_profit < 0:
+            logger.info(
+                f"[TimeExit] Closing {pair} after {trade_duration:.0f}min "
+                f"at {current_profit:.2%} — cutting losses"
+            )
+            return "time_exit_loss"
+
+        # After 4 hours: exit regardless (capital shouldn't be locked this long)
+        if trade_duration > 240 and current_profit < 0.01:
+            logger.info(
+                f"[TimeExit] Closing {pair} after {trade_duration:.0f}min "
+                f"at {current_profit:.2%} — freeing capital"
+            )
+            return "time_exit_stale"
+
+        return False
 
     def custom_stake_amount(
         self, pair: str, current_time: datetime, current_rate: float,
