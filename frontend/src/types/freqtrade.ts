@@ -253,6 +253,78 @@ export interface SentimentData {
   error?: string;
 }
 
+// Trade Analyst types
+export interface TradeShadow {
+  id: number;
+  trade_id: number;
+  pair: string;
+  open_rate: number;
+  close_rate: number;
+  close_timestamp: number;
+  exit_reason: string | null;
+  profit_ratio: number;
+  stake_amount: number;
+  price_15m: number | null;
+  price_30m: number | null;
+  price_1h: number | null;
+  price_2h: number | null;
+  price_4h: number | null;
+  price_12h: number | null;
+  price_24h: number | null;
+  shadow_complete: boolean;
+  created_at: string;
+}
+
+export interface TradeAnalysis {
+  id: number;
+  trade_id: number;
+  pair: string;
+  classification: "premature_exit" | "correct_exit" | "missed_opportunity" | "close_call";
+  max_price_after: number | null;
+  max_profit_if_held: number | null;
+  recovery_time_minutes: number | null;
+  missed_upside_pct: number | null;
+  exit_reason: string | null;
+  created_at: string;
+}
+
+export interface PairOverride {
+  id: number;
+  pair: string;
+  parameter_name: string;
+  original_value: number | null;
+  recommended_value: number;
+  reasoning: string | null;
+  confidence: number | null;
+  active: boolean;
+  source: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PairAnalysisSummary {
+  trades: number;
+  premature: number;
+  correct: number;
+  missed_opportunity: number;
+  close_call: number;
+  avg_missed_upside: number;
+  avg_recovery_minutes: number | null;
+}
+
+export interface AnalystDashboardData {
+  shadows: TradeShadow[];
+  analyses: TradeAnalysis[];
+  overrides: PairOverride[];
+  summary: {
+    total_tracked: number;
+    total_analyzed: number;
+    premature_exit_rate: number;
+    avg_missed_upside: number;
+    pair_stats: Record<string, PairAnalysisSummary>;
+  };
+}
+
 // Settings types
 export interface AppSettings {
   minimax_api_key: string | null;

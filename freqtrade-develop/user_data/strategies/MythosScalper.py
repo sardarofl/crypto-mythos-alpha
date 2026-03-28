@@ -82,6 +82,46 @@ class SentimentCache:
         return self._fear_greed
 
 
+class OverrideCache:
+    """Fetches and caches per-pair parameter overrides from the Trade Analyst API."""
+
+    def __init__(self, api_url: str = "http://127.0.0.1:3000/api/pair-overrides", ttl: int = 300):
+        self.api_url = api_url
+        self.ttl = ttl
+        self._data: dict[str, dict] = {}
+        self._last_fetch: float = 0
+
+    def _fetch(self) -> None:
+        now = time.time()
+        if self._data and (now - self._last_fetch) < self.ttl:
+            return
+
+        try:
+            req = Request(self.api_url, headers={"Accept": "application/json"})
+            with urlopen(req, timeout=5) as resp:
+                self._data = json.loads(resp.read().decode())
+                self._last_fetch = now
+                if self._data:
+                    logger.info(
+                        f"[Overrides] Updated: {list(self._data.keys())}"
+                    )
+        except (URLError, json.JSONDecodeError, Exception) as e:
+            logger.warning(f"[Overrides] Fetch failed: {e}")
+
+    def get_pair_overrides(self, pair: str) -> dict:
+        """Returns override dict for a pair, e.g. {'sell_volume_decline_candles': 5}."""
+        self._fetch()
+        return self._data.get(pair, {})
+
+    def get_override(self, pair: str, param: str, default: float | int) -> float | int:
+        """Returns a specific override value, or default if not set."""
+        overrides = self.get_pair_overrides(pair)
+        val = overrides.get(param)
+        if val is not None:
+            return type(default)(val)
+        return default
+
+
 class MythosScalper(IStrategy):
     INTERFACE_VERSION = 3
 
@@ -112,6 +152,9 @@ class MythosScalper(IStrategy):
 
     # Sentiment integration
     sentiment = SentimentCache()
+
+    # Per-pair override integration (from Trade Analyst AI)
+    overrides = OverrideCache()
 
     # Hyperopt parameters
     buy_ema_fast = IntParameter(5, 15, default=8, space="buy", optimize=True)
@@ -237,34 +280,58 @@ class MythosScalper(IStrategy):
         return dataframe
 
     def populate_exit_trend(self, dataframe: DataFrame, metadata: dict) -> DataFrame:
-        conditions_signal = [
-            # EMA fast crossed below EMA slow
-            (
-                (dataframe["ema_cross_down"] == 1)
-                | (dataframe["ema_cross_down"].shift(1) == 1)
-            ),
-            (dataframe["volume"] > 0),
-        ]
+        pair = metadata.get("pair", "")
+        pair_overrides = self.overrides.get_pair_overrides(pair)
 
+        # --- EMA cross down exit ---
+        # Apply exit_delay_candles override: require more confirmation candles
+        exit_delay = int(pair_overrides.get("exit_delay_candles", 0))
+        if exit_delay >= 2:
+            # Require N consecutive candles with EMA fast < EMA slow
+            ema_below = dataframe["ema_fast"] < dataframe["ema_slow"]
+            confirmed = ema_below
+            for i in range(1, exit_delay):
+                confirmed = confirmed & ema_below.shift(i)
+            conditions_signal = [confirmed, (dataframe["volume"] > 0)]
+        else:
+            conditions_signal = [
+                (
+                    (dataframe["ema_cross_down"] == 1)
+                    | (dataframe["ema_cross_down"].shift(1) == 1)
+                ),
+                (dataframe["volume"] > 0),
+            ]
+
+        # --- RSI overbought exit ---
+        rsi_threshold = int(pair_overrides.get("sell_rsi_high", self.sell_rsi_high.value))
         conditions_overbought = [
-            # RSI overbought
-            (dataframe["rsi"] > self.sell_rsi_high.value),
+            (dataframe["rsi"] > rsi_threshold),
             (dataframe["volume"] > 0),
         ]
 
-        vol_decline_col = f"volume_declining_{self.sell_volume_decline_candles.value}"
-        conditions_volume_dry = [
-            # Volume drying up
-            (dataframe[vol_decline_col] == 1),
-            # And EMA fast trending down
-            (dataframe["ema_fast"] < dataframe["ema_fast"].shift(1)),
-            (dataframe["volume"] > 0),
-        ]
+        # --- Volume dry exit ---
+        hold_through_vol = int(pair_overrides.get("hold_through_volume_dry", 0))
+        if hold_through_vol:
+            # Skip volume_dry exit entirely for this pair
+            volume_dry_exit = dataframe["close"] < 0  # Always False
+            if logger.isEnabledFor(logging.DEBUG):
+                logger.debug(f"[Overrides] {pair}: holding through volume_dry")
+        else:
+            vol_candles = int(pair_overrides.get(
+                "sell_volume_decline_candles",
+                self.sell_volume_decline_candles.value,
+            ))
+            vol_candles = max(2, min(5, vol_candles))  # Clamp to available columns
+            vol_decline_col = f"volume_declining_{vol_candles}"
+            conditions_volume_dry = [
+                (dataframe[vol_decline_col] == 1),
+                (dataframe["ema_fast"] < dataframe["ema_fast"].shift(1)),
+                (dataframe["volume"] > 0),
+            ]
+            volume_dry_exit = reduce(lambda a, b: a & b, conditions_volume_dry)
 
-        # Combine: exit on any of these conditions
         signal_exit = reduce(lambda a, b: a & b, conditions_signal)
         overbought_exit = reduce(lambda a, b: a & b, conditions_overbought)
-        volume_dry_exit = reduce(lambda a, b: a & b, conditions_volume_dry)
 
         dataframe.loc[signal_exit | overbought_exit | volume_dry_exit, "exit_long"] = 1
 
@@ -304,16 +371,19 @@ class MythosScalper(IStrategy):
         current_rate: float, current_profit: float, **kwargs,
     ) -> str | bool:
         """
-        Time-based exit: if a trade isn't profitable after 2 hours, cut it.
-        Don't let losers sit and bleed.
+        Time-based exit: if a trade isn't profitable after N hours, cut it.
+        Override-aware: per-pair time_exit_loss_minutes adjusts patience.
         """
         trade_duration = (current_time - trade.open_date_utc).total_seconds() / 60
 
-        # After 2 hours: if still losing, exit immediately
-        if trade_duration > 120 and current_profit < 0:
+        # Get per-pair override for loss exit patience (default 120 min)
+        loss_exit_minutes = self.overrides.get_override(pair, "time_exit_loss_minutes", 120)
+
+        # After N minutes: if still losing, exit
+        if trade_duration > loss_exit_minutes and current_profit < 0:
             logger.info(
                 f"[TimeExit] Closing {pair} after {trade_duration:.0f}min "
-                f"at {current_profit:.2%} — cutting losses"
+                f"(limit: {loss_exit_minutes}min) at {current_profit:.2%} — cutting losses"
             )
             return "time_exit_loss"
 

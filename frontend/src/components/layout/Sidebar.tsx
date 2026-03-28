@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Radar,
   CandlestickChart,
+  Microscope,
   FlaskConical,
   Settings,
   Swords,
@@ -18,6 +19,7 @@ const navItems = [
   { href: "/", label: "Dashboard", icon: LayoutDashboard },
   { href: "/pair-scanner", label: "Pair Scanner", icon: Radar },
   { href: "/trading", label: "Trading", icon: CandlestickChart },
+  { href: "/analyst", label: "Trade Analyst", icon: Microscope },
   { href: "/backtest", label: "Backtest", icon: FlaskConical },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
